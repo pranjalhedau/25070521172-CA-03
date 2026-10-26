@@ -2,6 +2,9 @@ import {
   IconBook,
   IconGrid,
   IconList,
+  IconCalendar,
+  IconBarChart,
+  IconTarget,
   IconPlus,
   IconLogOut,
   IconX,
@@ -13,7 +16,6 @@ export default function Sidebar({
   onOpenNewTask,
   user,
   onLogout,
-  healthStatus,
   isOpenMobile,
   onCloseMobile,
   taskCount = 0,
@@ -106,21 +108,45 @@ export default function Sidebar({
             <span className="nav-item-label">Task Registry</span>
             {taskCount > 0 && <span className="nav-item-badge">{taskCount}</span>}
           </button>
+
+          <button
+            type="button"
+            className={`nav-item ${currentView === 'planner' ? 'active' : ''}`}
+            onClick={() => handleNav('planner')}
+          >
+            <span className="nav-item-icon">
+              <IconCalendar size={18} />
+            </span>
+            <span className="nav-item-label">Study Planner</span>
+          </button>
+
+          <button
+            type="button"
+            className={`nav-item ${currentView === 'analytics' ? 'active' : ''}`}
+            onClick={() => handleNav('analytics')}
+          >
+            <span className="nav-item-icon">
+              <IconBarChart size={18} />
+            </span>
+            <span className="nav-item-label">Study Analytics</span>
+          </button>
+
+          <button
+            type="button"
+            className={`nav-item ${currentView === 'focus' ? 'active' : ''}`}
+            onClick={() => handleNav('focus')}
+          >
+            <span className="nav-item-icon">
+              <IconTarget size={18} />
+            </span>
+            <span className="nav-item-label">Focus Mode</span>
+          </button>
         </nav>
 
-        {/* System & Term Metadata */}
+        {/* Brand Focus Card */}
         <div className="sidebar-meta-box">
-          <div className="system-health-pill">
-            <span
-              className={`health-dot ${
-                healthStatus?.mongoConnected ? 'healthy' : 'disconnected'
-              }`}
-            />
-            <span className="health-label">
-              {healthStatus?.mongoConnected ? 'Local DB Online' : 'Connecting DB...'}
-            </span>
-          </div>
-          <span className="term-label">College CA-3 • Evaluation</span>
+          <span className="sidebar-motto-title">Your semester, organized.</span>
+          <span className="sidebar-motto-subtitle">Plan · Focus · Achieve</span>
         </div>
 
         {/* User Profile & Sign Out Footer */}

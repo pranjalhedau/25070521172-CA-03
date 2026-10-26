@@ -14,9 +14,13 @@ import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
 import DashboardView from './components/DashboardView';
 import TasksView from './components/TasksView';
+import PlannerView from './components/PlannerView';
+import AnalyticsView from './components/AnalyticsView';
+import FocusView from './components/FocusView';
 import TaskModal from './components/TaskModal';
 import Toast from './components/Toast';
 import './App.css';
+import './components/NewViews.css';
 
 export default function App() {
   const [user, setUser] = useState(() => getUser());
@@ -24,12 +28,19 @@ export default function App() {
   const [healthStatus, setHealthStatus] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [loadingTasks, setLoadingTasks] = useState(false);
-  const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard' | 'tasks'
+  const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard' | 'tasks' | 'planner' | 'analytics' | 'focus'
   const [taskFilterPreset, setTaskFilterPreset] = useState('all');
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [toast, setToast] = useState(null);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+
+  // Focus Mode / Pomodoro Timer State (Managed at App level to persist across page switches without speeding up or creating duplicate intervals)
+  const [focusMode, setFocusMode] = useState('pomodoro'); // 'pomodoro' (25m) | 'shortBreak' (5m) | 'longBreak' (15m)
+  const [focusSecondsLeft, setFocusSecondsLeft] = useState(25 * 60);
+  const [focusIsRunning, setFocusIsRunning] = useState(false);
+  const [focusSelectedTaskId, setFocusSelectedTaskId] = useState(null);
+  const [focusSessionsCompleted, setFocusSessionsCompleted] = useState(0);
 
   // Helper to trigger toast notifications
   const showToast = useCallback((message, type = 'success') => {
@@ -76,6 +87,75 @@ export default function App() {
     };
   }, [user, token, showToast]);
 
+  // Pomodoro Countdown Timer Effect: accurately counts down and cleans up intervals properly
+  useEffect(() => {
+    if (!focusIsRunning) return;
+
+    const interval = setInterval(() => {
+      setFocusSecondsLeft((prev) => {
+        if (prev <= 1) {
+          // Play a gentle audio chime using Web Audio API (no external audio files needed)
+          try {
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            if (AudioContextClass) {
+              const ctx = new AudioContextClass();
+              const osc = ctx.createOscillator();
+              const gain = ctx.createGain();
+              osc.type = 'sine';
+              osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+              osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.25); // A5
+              gain.gain.setValueAtTime(0.12, ctx.currentTime);
+              gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+              osc.connect(gain);
+              gain.connect(ctx.destination);
+              osc.start();
+              osc.stop(ctx.currentTime + 0.5);
+            }
+          } catch {
+            // Audio context not allowed or unsupported
+          }
+
+          setFocusIsRunning(false);
+          if (focusMode === 'pomodoro') {
+            setFocusSessionsCompleted((c) => c + 1);
+            showToast('Focus session complete! Time for a short break.', 'success');
+          } else {
+            showToast('Break completed! Ready for another study block.', 'info');
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [focusIsRunning, focusMode, showToast]);
+
+  // Timer Handlers
+  function handleStartTimer() {
+    setFocusIsRunning(true);
+  }
+
+  function handlePauseTimer() {
+    setFocusIsRunning(false);
+  }
+
+  function handleResetTimer() {
+    setFocusIsRunning(false);
+    const durations = { pomodoro: 25 * 60, shortBreak: 5 * 60, longBreak: 15 * 60 };
+    setFocusSecondsLeft(durations[focusMode] || 25 * 60);
+  }
+
+  function handleSelectFocusMode(newMode, durationSeconds) {
+    setFocusIsRunning(false);
+    setFocusMode(newMode);
+    setFocusSecondsLeft(durationSeconds);
+  }
+
+  function handleSelectFocusTask(taskId) {
+    setFocusSelectedTaskId(taskId);
+  }
+
   // Auth Success Handler
   function handleAuthSuccess(authenticatedUser) {
     setUser(authenticatedUser);
@@ -90,12 +170,13 @@ export default function App() {
     setToken(null);
     setTasks([]);
     setCurrentView('dashboard');
+    setFocusIsRunning(false);
     showToast('You have signed out successfully.', 'info');
   }
 
   // Task Modal Handlers
-  function handleOpenNewTask() {
-    setEditingTask(null);
+  function handleOpenNewTask(prefillData) {
+    setEditingTask(prefillData && prefillData.dueDate ? prefillData : null);
     setIsTaskModalOpen(true);
   }
 
@@ -112,7 +193,7 @@ export default function App() {
   // Create or Update task submission
   async function handleSaveTask(taskData) {
     try {
-      if (editingTask) {
+      if (editingTask && editingTask._id) {
         const updated = await updateTask(editingTask._id, taskData);
         setTasks((prev) =>
           prev.map((t) => (t._id === editingTask._id ? updated : t))
@@ -209,7 +290,6 @@ export default function App() {
           onOpenNewTask={handleOpenNewTask}
           user={user}
           onLogout={handleLogout}
-          healthStatus={healthStatus}
           isOpenMobile={isMobileNavOpen}
           onCloseMobile={() => setIsMobileNavOpen(false)}
           taskCount={tasks.length}
@@ -239,7 +319,7 @@ export default function App() {
                 onEditTask={handleEditTask}
                 onNavigateToTasks={handleNavigateToTasks}
               />
-            ) : (
+            ) : currentView === 'tasks' ? (
               <TasksView
                 tasks={tasks}
                 onOpenNewTask={handleOpenNewTask}
@@ -248,7 +328,36 @@ export default function App() {
                 onToggleComplete={handleToggleComplete}
                 initialFilter={taskFilterPreset}
               />
-            )}
+            ) : currentView === 'planner' ? (
+              <PlannerView
+                tasks={tasks}
+                onOpenNewTask={handleOpenNewTask}
+                onEditTask={handleEditTask}
+                onToggleComplete={handleToggleComplete}
+              />
+            ) : currentView === 'analytics' ? (
+              <AnalyticsView
+                tasks={tasks}
+                onOpenNewTask={handleOpenNewTask}
+              />
+            ) : currentView === 'focus' ? (
+              <FocusView
+                tasks={tasks}
+                timerState={{
+                  mode: focusMode,
+                  secondsLeft: focusSecondsLeft,
+                  isRunning: focusIsRunning,
+                  selectedTaskId: focusSelectedTaskId,
+                  sessionsCompleted: focusSessionsCompleted,
+                }}
+                onStart={handleStartTimer}
+                onPause={handlePauseTimer}
+                onReset={handleResetTimer}
+                onSelectMode={handleSelectFocusMode}
+                onSelectTask={handleSelectFocusTask}
+                onToggleComplete={handleToggleComplete}
+              />
+            ) : null}
           </main>
         </div>
       </div>

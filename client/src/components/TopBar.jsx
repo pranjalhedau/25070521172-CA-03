@@ -9,6 +9,9 @@ export default function TopBar({
   const viewTitles = {
     dashboard: 'Dashboard Overview',
     tasks: 'Task Registry',
+    planner: 'Study Planner & Calendar',
+    analytics: 'Study Analytics & Performance',
+    focus: 'Focus Mode & Pomodoro',
   };
 
   return (

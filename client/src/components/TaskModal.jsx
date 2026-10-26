@@ -3,6 +3,7 @@ import { IconX } from './Icons';
 import { toInputDateFormat } from '../utils/dateUtils';
 
 function TaskModalForm({ task, onClose, onSave, existingSubjects = [] }) {
+  const isEdit = Boolean(task && task._id);
   const [title, setTitle] = useState(task?.title || '');
   const [subject, setSubject] = useState(task?.subject || '');
   const [priority, setPriority] = useState(task?.priority || 'Medium');
@@ -39,7 +40,7 @@ function TaskModalForm({ task, onClose, onSave, existingSubjects = [] }) {
         priority,
         dueDate: dueDate ? new Date(dueDate).toISOString() : null,
         description: description.trim(),
-        ...(task ? { completed } : {}),
+        ...(isEdit ? { completed } : {}),
       });
       onClose();
     } catch (err) {
@@ -53,9 +54,9 @@ function TaskModalForm({ task, onClose, onSave, existingSubjects = [] }) {
     <div className="modal-card" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="modal-heading">
       <div className="modal-header">
         <div>
-          <span className="modal-eyebrow">{task ? 'Edit Assignment' : 'New Academic Task'}</span>
+          <span className="modal-eyebrow">{isEdit ? 'Edit Assignment' : 'New Academic Task'}</span>
           <h2 id="modal-heading" className="modal-title">
-            {task ? 'Update Task Details' : 'Record New Study Task'}
+            {isEdit ? 'Update Task Details' : 'Record New Study Task'}
           </h2>
         </div>
         <button type="button" className="btn-icon-close" onClick={onClose} aria-label="Close dialog">
@@ -78,7 +79,7 @@ function TaskModalForm({ task, onClose, onSave, existingSubjects = [] }) {
             id="task-title"
             type="text"
             className="form-input"
-            placeholder="e.g., Complete Chapter 4 Exercises, CA-3 Presentation Slides"
+            placeholder="e.g., Complete Chapter 4 Exercises, Term Project Presentation"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             autoFocus
@@ -159,7 +160,7 @@ function TaskModalForm({ task, onClose, onSave, existingSubjects = [] }) {
           />
         </div>
 
-        {task && (
+        {isEdit && (
           <div className="form-group checkbox-group">
             <label className="checkbox-label">
               <input
@@ -178,7 +179,7 @@ function TaskModalForm({ task, onClose, onSave, existingSubjects = [] }) {
             Cancel
           </button>
           <button type="submit" className="btn-primary" disabled={submitting}>
-            {submitting ? 'Saving...' : task ? 'Save Changes' : 'Create Task'}
+            {submitting ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Task'}
           </button>
         </div>
       </form>
@@ -189,10 +190,12 @@ function TaskModalForm({ task, onClose, onSave, existingSubjects = [] }) {
 export default function TaskModal({ isOpen, onClose, onSave, task, existingSubjects = [] }) {
   if (!isOpen) return null;
 
+  const formKey = task?._id || (task?.dueDate ? `prefill-${task.dueDate}` : 'new-task');
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <TaskModalForm
-        key={task ? task._id : 'new-task'}
+        key={formKey}
         task={task}
         onClose={onClose}
         onSave={onSave}

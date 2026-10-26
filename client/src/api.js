@@ -73,6 +73,13 @@ export async function loginUser({ email, password }) {
   });
 }
 
+export async function googleLogin(credential) {
+  return request('/auth/google', {
+    method: 'POST',
+    body: JSON.stringify({ credential }),
+  });
+}
+
 // ── Tasks CRUD ──
 export async function fetchTasks() {
   return request('/tasks');

@@ -1,6 +1,8 @@
-import { useState } from 'react';
-import { loginUser, registerUser, setAuth } from '../api';
+import { useState, useEffect, useRef } from 'react';
+import { loginUser, registerUser, googleLogin, setAuth } from '../api';
 import { IconBook, IconCheckCircle, IconClock, IconEye, IconEyeOff } from './Icons';
+
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 export default function AuthView({ onAuthSuccess, healthStatus }) {
   const [mode, setMode] = useState('login'); // 'login' | 'register'
@@ -9,7 +11,69 @@ export default function AuthView({ onAuthSuccess, healthStatus }) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
+  const googleBtnRef = useRef(null);
+
+  // Initialize Google Sign-In button when the GSI script is loaded
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID) return;
+
+    function initGoogle() {
+      if (!window.google?.accounts?.id) return;
+
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleGoogleCredential,
+        auto_select: false,
+      });
+
+      if (googleBtnRef.current) {
+        window.google.accounts.id.renderButton(googleBtnRef.current, {
+          type: 'standard',
+          theme: 'outline',
+          size: 'large',
+          text: 'signin_with',
+          shape: 'rectangular',
+          width: googleBtnRef.current.offsetWidth || 360,
+        });
+      }
+    }
+
+    // GSI script may still be loading — poll briefly
+    if (window.google?.accounts?.id) {
+      initGoogle();
+    } else {
+      const interval = setInterval(() => {
+        if (window.google?.accounts?.id) {
+          clearInterval(interval);
+          initGoogle();
+        }
+      }, 100);
+      return () => clearInterval(interval);
+    }
+  // Re-render button when ref is ready; no other deps needed
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [googleBtnRef.current]);
+
+  // Called by GSI with a signed credential (ID token)
+  async function handleGoogleCredential(response) {
+    setError('');
+    setGoogleLoading(true);
+    try {
+      const result = await googleLogin(response.credential);
+      if (result.token && result.user) {
+        setAuth(result.token, result.user);
+        onAuthSuccess(result.user);
+      } else {
+        throw new Error('Incomplete response from Google sign-in.');
+      }
+    } catch (err) {
+      setError(err.message || 'Google sign-in failed. Please try again.');
+    } finally {
+      setGoogleLoading(false);
+    }
+  }
 
   function switchMode(newMode) {
     setMode(newMode);
@@ -114,8 +178,8 @@ export default function AuthView({ onAuthSuccess, healthStatus }) {
             <span className={`status-dot ${healthStatus?.mongoConnected ? 'online' : 'offline'}`} />
             <span>
               {healthStatus?.mongoConnected
-                ? 'Backend API & MongoDB online'
-                : 'Connecting to local API...'}
+                ? 'StudyFlow Cloud Sync Active'
+                : 'Connecting to StudyFlow service...'}
             </span>
           </div>
         </div>
@@ -241,6 +305,23 @@ export default function AuthView({ onAuthSuccess, healthStatus }) {
                   : 'Sign In to Workspace'}
               </button>
             </form>
+
+            {/* ── Google Sign-In ── */}
+            {GOOGLE_CLIENT_ID && (
+              <div className="auth-google-section">
+                <div className="auth-divider">
+                  <span>or continue with</span>
+                </div>
+                {googleLoading ? (
+                  <div className="google-btn-loading">
+                    <div className="editorial-spinner" style={{ width: 20, height: 20 }} />
+                    <span>Signing in with Google…</span>
+                  </div>
+                ) : (
+                  <div ref={googleBtnRef} className="google-btn-container" id="google-signin-btn" />
+                )}
+              </div>
+            )}
 
             <div className="auth-footer-toggle">
               {mode === 'login' ? (
